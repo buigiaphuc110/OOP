@@ -1,0 +1,86 @@
+#include <iostream>
+#include <string>
+#include <vector>
+
+using namespace std;
+
+
+class SieuNhan {
+private:
+    string ten;
+    string vu_khi;
+    string mau_sac;
+
+public:
+    // Constructor không tham số (dùng khi khởi tạo mảng/vector ở phần 3)
+    SieuNhan() {}
+
+    // Constructor có tham số (dùng để gán cứng giá trị ở phần 2)
+    SieuNhan(string _ten, string _vu_khi, string _mau_sac) {
+        ten = _ten;
+        vu_khi = _vu_khi;
+        mau_sac = _mau_sac;
+    }
+
+    // Hàm nhập thông tin từ bàn phím
+    void nhapThongTin() {
+        cout << "  Nhập tên siêu nhân: ";
+        // Dùng getline(cin >> ws, ...) để đọc được chuỗi có khoảng trắng
+        getline(cin >> ws, ten); 
+        cout << "  Nhập vũ khí: ";
+        getline(cin >> ws, vu_khi);
+        cout << "  Nhập màu sắc: ";
+        getline(cin >> ws, mau_sac);
+    }
+
+    // Hàm in thông tin ra màn hình
+    void inThongTin() {
+        cout << "- Tên: " << ten 
+             << " | Vũ khí: " << vu_khi 
+             << " | Màu sắc: " << mau_sac << endl;
+    }
+};
+
+int main() {
+   
+    cout << "--- PHAN 2: TEST HAI DOI TUONG SIEU NHAN ---" << endl;
+    
+
+    SieuNhan sieu_nhan_A("A", "kiếm", "đỏ");
+    SieuNhan sieu_nhan_B("B", "khiên", "xanh");
+
+    // In ra thể hiện của cả hai
+    sieu_nhan_A.inThongTin();
+    sieu_nhan_B.inThongTin();
+    cout << "\n--------------------------------------------\n\n";
+
+   
+    cout << "--- PHAN 3: QUAN LY DANH SACH SIEU NHAN ---" << endl;
+    
+    vector<SieuNhan> danh_sach; // Dùng vector để chứa danh sách có số lượng tùy ý
+    int tiep_tuc = 1;
+    int dem = 1;
+
+    // Dùng vòng lặp while để nhập danh sách
+    while (tiep_tuc == 1) {
+        cout << "Nhập thông tin cho siêu nhân thứ " << dem << ":" << endl;
+        SieuNhan sn;
+        sn.nhapThongTin();
+        
+        // Thêm siêu nhân vừa nhập vào danh sách
+        danh_sach.push_back(sn); 
+        dem++;
+
+        cout << "=> Bạn có muốn nhập tiếp không? (1 - Có, 0 - Không): ";
+        cin >> tiep_tuc;
+        cout << endl;
+    }
+
+    // Dùng vòng lặp for để in danh sách kèm thuộc tính
+    cout << "=== DANH SACH SIEU NHAN VUA NHAP ===" << endl;
+    for (int i = 0; i < danh_sach.size(); i++) {
+        danh_sach[i].inThongTin();
+    }
+
+    return 0;
+}
