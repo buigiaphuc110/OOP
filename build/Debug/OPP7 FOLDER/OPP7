@@ -1,0 +1,343 @@
+#include <iostream>
+#include <string>
+#include <vector>
+#include <map>
+#include <fstream>
+#include <sstream>
+#include <memory>
+#include <algorithm>
+#include <stdexcept>
+
+using namespace std;
+
+// ==========================================
+// HÀM HỖ TRỢ: Trích xuất giá trị từ chuỗi JSON đơn giản
+// ==========================================
+string extractJSON(const string& json_str, const string& key) {
+    string search_key = "\"" + key + "\":\"";
+    size_t start = json_str.find(search_key);
+    if (start == string::npos) return "";
+    start += search_key.length();
+    size_t end = json_str.find("\"", start);
+    if (end == string::npos) return "";
+    return json_str.substr(start, end - start);
+}
+
+// ==========================================
+// PHẦN 1: ĐỊNH NGHĨA CÁC LỚP ĐỐI TƯỢNG (OOP)
+// ==========================================
+class CanBo {
+protected:
+    string hoten;
+    int tuoi;
+    string gioitinh;
+    string diachi;
+
+public:
+    CanBo(string ht, int t, string gt, string dc) : hoten(ht), tuoi(t), gioitinh(gt), diachi(dc) {}
+    virtual ~CanBo() {} // Virtual destructor rất quan trọng trong C++ OOP
+
+    string getHoTen() const { return hoten; }
+    virtual string getLoai() const { return "CanBo"; }
+    
+    // Phục vụ yêu cầu tìm top 3 bậc/lương
+    virtual int getGiaTriXepHang() const { return 0; }
+
+    virtual void hienThi() const {
+        cout << "Ho ten: " << hoten << ", Tuoi: " << tuoi 
+             << ", Gioi tinh: " << gioitinh << ", Dia chi: " << diachi;
+    }
+
+    // Yêu cầu 3: Chuyển đổi thành JSON chuỗi
+    virtual string to_dict() const {
+        return "{\"loai\":\"" + getLoai() + "\",\"hoten\":\"" + hoten + 
+               "\",\"tuoi\":\"" + to_string(tuoi) + "\",\"gioitinh\":\"" + gioitinh + 
+               "\",\"diachi\":\"" + diachi + "\""; 
+    }
+};
+
+class CongNhan : public CanBo {
+private:
+    int bac;
+public:
+    CongNhan(string ht, int t, string gt, string dc, int b) : CanBo(ht, t, gt, dc), bac(b) {}
+    
+    string getLoai() const override { return "CongNhan"; }
+    int getGiaTriXepHang() const override { return bac; } // Xếp hạng theo bậc
+
+    void hienThi() const override {
+        CanBo::hienThi();
+        cout << ", Cap bac: " << bac << "\n";
+    }
+
+    string to_dict() const override {
+        return CanBo::to_dict() + ",\"dac_diem\":\"" + to_string(bac) + "\"}";
+    }
+};
+
+class KySu : public CanBo {
+private:
+    string nganh;
+public:
+    KySu(string ht, int t, string gt, string dc, string ng) : CanBo(ht, t, gt, dc), nganh(ng) {}
+    
+    string getLoai() const override { return "KySu"; }
+    
+    void hienThi() const override {
+        CanBo::hienThi();
+        cout << ", Nganh dao tao: " << nganh << "\n";
+    }
+
+    string to_dict() const override {
+        return CanBo::to_dict() + ",\"dac_diem\":\"" + nganh + "\"}";
+    }
+};
+
+class NhanVien : public CanBo {
+private:
+    string congviec;
+public:
+    NhanVien(string ht, int t, string gt, string dc, string cv) : CanBo(ht, t, gt, dc), congviec(cv) {}
+    
+    string getLoai() const override { return "NhanVien"; }
+
+    void hienThi() const override {
+        CanBo::hienThi();
+        cout << ", Cong viec: " << congviec << "\n";
+    }
+
+    string to_dict() const override {
+        return CanBo::to_dict() + ",\"dac_diem\":\"" + congviec + "\"}";
+    }
+};
+
+// ==========================================
+// PHẦN 2: LỚP QUẢN LÝ (GOM NHÓM NGHIỆP VỤ)
+// ==========================================
+class QuanLyCanBo {
+private:
+    // Yêu cầu 2: Lưu danh sách vào std::map với key là họ tên
+    // Dùng shared_ptr để xử lý đa hình và tự động dọn rác (memory management)
+    map<string, shared_ptr<CanBo>> danh_sach;
+
+public:
+    // --- LƯU JSON (Auto-save) ---
+    void luu_json(const string& filename = "canbo.json") {
+        ofstream file(filename);
+        if (!file.is_open()) return;
+        
+        file << "[\n";
+        bool first = true;
+        for (const auto& pair : danh_sach) {
+            if (!first) file << ",\n";
+            file << "  " << pair.second->to_dict();
+            first = false;
+        }
+        file << "\n]";
+        file.close();
+    }
+
+    // --- Yêu cầu 3: FROM_DICT (Đọc JSON) ---
+    void doc_json(const string& filename = "canbo.json") {
+        ifstream file(filename);
+        if (!file.is_open()) return;
+
+        danh_sach.clear();
+        string line;
+        while (getline(file, line)) {
+            if (line.find("{") == string::npos) continue; // Bỏ qua dòng ngoặc vuông
+            
+            try {
+                string loai = extractJSON(line, "loai");
+                string hoten = extractJSON(line, "hoten");
+                int tuoi = stoi(extractJSON(line, "tuoi"));
+                string gioitinh = extractJSON(line, "gioitinh");
+                string diachi = extractJSON(line, "diachi");
+                string dac_diem = extractJSON(line, "dac_diem");
+
+                if (loai == "CongNhan") danh_sach[hoten] = make_shared<CongNhan>(hoten, tuoi, gioitinh, diachi, stoi(dac_diem));
+                else if (loai == "KySu") danh_sach[hoten] = make_shared<KySu>(hoten, tuoi, gioitinh, diachi, dac_diem);
+                else if (loai == "NhanVien") danh_sach[hoten] = make_shared<NhanVien>(hoten, tuoi, gioitinh, diachi, dac_diem);
+            } catch (const exception& e) {
+                cout << "Loi doc JSON dong: " << line << "\n";
+            }
+        }
+        file.close();
+        cout << "Da tai du lieu tu " << filename << "\n";
+    }
+
+    // --- Yêu cầu 1: Đọc CSV và Xử lý Ngoại lệ ---
+    void doc_csv(const string& filename = "canbo.csv") {
+        ifstream file(filename);
+        if (!file.is_open()) {
+            cout << "LOI (FileNotFoundError): Khong tim thay file '" << filename << "'.\n";
+            return;
+        }
+
+        string line;
+        while (getline(file, line)) {
+            if (line.empty()) continue;
+            stringstream ss(line);
+            string hoten, tuoi_str, gioitinh, diachi, loai, dac_diem;
+            
+            getline(ss, hoten, ',');
+            getline(ss, tuoi_str, ',');
+            getline(ss, gioitinh, ',');
+            getline(ss, diachi, ',');
+            getline(ss, loai, ',');
+            getline(ss, dac_diem, ',');
+
+            try {
+                int tuoi = stoi(tuoi_str); // Có thể ném ra invalid_argument (ValueError)
+                
+                if (loai == "CongNhan") {
+                    int bac = stoi(dac_diem);
+                    danh_sach[hoten] = make_shared<CongNhan>(hoten, tuoi, gioitinh, diachi, bac);
+                } else if (loai == "KySu") {
+                    danh_sach[hoten] = make_shared<KySu>(hoten, tuoi, gioitinh, diachi, dac_diem);
+                } else if (loai == "NhanVien") {
+                    danh_sach[hoten] = make_shared<NhanVien>(hoten, tuoi, gioitinh, diachi, dac_diem);
+                }
+            } catch (const invalid_argument& e) {
+                cout << "LOI (ValueError): Du lieu khong hop le o dong -> " << line << " (Tuoi hoac Bac khong phai so)\n";
+            } catch (const exception& e) {
+                 cout << "LOI KHONG XAC DINH: " << e.what() << "\n";
+            }
+        }
+        file.close();
+        cout << "Da doc CSV thanh cong!\n";
+        luu_json(); // Tự động lưu sau khi khởi tạo
+    }
+
+    // --- Yêu cầu 2: Cài đặt các thao tác CRUD ---
+    void themCanBo(shared_ptr<CanBo> cb) {
+        danh_sach[cb->getHoTen()] = cb;
+        cout << "Da them can bo thanh cong!\n";
+        luu_json();
+    }
+
+    void xoaCanBo(const string& hoten) {
+        if (danh_sach.erase(hoten)) {
+            cout << "Da xoa can bo: " << hoten << "\n";
+            luu_json();
+        } else {
+            cout << "Khong tim thay can bo ten: " << hoten << "\n";
+        }
+    }
+
+    void timTheoTen(const string& hoten) {
+        auto it = danh_sach.find(hoten);
+        if (it != danh_sach.end()) {
+            it->second->hienThi();
+        } else {
+            cout << "Khong tim thay can bo.\n";
+        }
+    }
+
+    void timTheoLoai(const string& loai) {
+        bool found = false;
+        for (const auto& pair : danh_sach) {
+            if (pair.second->getLoai() == loai) {
+                pair.second->hienThi();
+                found = true;
+            }
+        }
+        if (!found) cout << "Khong co can bo thuoc loai nay.\n";
+    }
+
+    void inTop3() {
+        vector<shared_ptr<CanBo>> vec;
+        for (const auto& pair : danh_sach) {
+            vec.push_back(pair.second);
+        }
+
+        // Sắp xếp giảm dần theo giá trị (bậc)
+        sort(vec.begin(), vec.end(), [](const shared_ptr<CanBo>& a, const shared_ptr<CanBo>& b) {
+            return a->getGiaTriXepHang() > b->getGiaTriXepHang();
+        });
+
+        cout << "--- TOP 3 CAN BO CO BAC CAO NHAT ---\n";
+        int count = 0;
+        for (const auto& cb : vec) {
+            if (count >= 3) break;
+            if (cb->getGiaTriXepHang() > 0) { // Chỉ in những người có bậc/lương
+                cb->hienThi();
+                count++;
+            }
+        }
+        if (count == 0) cout << "Khong co du lieu de xep hang.\n";
+    }
+};
+
+// ==========================================
+// YÊU CẦU 4: MENU CLI ĐẢM BẢO KHÔNG CRASH
+// ==========================================
+int main() {
+    QuanLyCanBo qlcb;
+    int choice;
+
+    while (true) {
+        cout << "\n========== QUAN LY CAN BO (C++) ==========\n";
+        cout << "1. Doc du lieu tu canbo.csv (Init)\n";
+        cout << "2. Tai du lieu tu canbo.json (Khoi phuc)\n";
+        cout << "3. Them Can bo (Cong Nhan)\n";
+        cout << "4. Xoa can bo theo ten\n";
+        cout << "5. Tim can bo theo ten\n";
+        cout << "6. Tim can bo theo loai\n";
+        cout << "7. In TOP 3 can bo bac cao nhat\n";
+        cout << "0. Thoat\n";
+        cout << "==========================================\n";
+        cout << "Nhap lua chon: ";
+        
+        if (!(cin >> choice)) { // Xử lý lỗi nếu user nhập chữ thay vì số
+            cout << "Vui long nhap so hop le!\n";
+            cin.clear();
+            cin.ignore(10000, '\n');
+            continue;
+        }
+        cin.ignore(); // Xóa bộ đệm enter
+
+        try {
+            switch (choice) {
+                case 1: qlcb.doc_csv(); break;
+                case 2: qlcb.doc_json(); break;
+                case 3: {
+                    string ht, gt, dc;
+                    int t, b;
+                    cout << "Nhap ho ten: "; getline(cin, ht);
+                    cout << "Nhap tuoi (so): "; cin >> t; cin.ignore();
+                    cout << "Nhap gioi tinh: "; getline(cin, gt);
+                    cout << "Nhap dia chi: "; getline(cin, dc);
+                    cout << "Nhap bac (1-10): "; cin >> b; cin.ignore();
+                    qlcb.themCanBo(make_shared<CongNhan>(ht, t, gt, dc, b));
+                    break;
+                }
+                case 4: {
+                    string ht;
+                    cout << "Nhap ten can xoa: "; getline(cin, ht);
+                    qlcb.xoaCanBo(ht);
+                    break;
+                }
+                case 5: {
+                    string ht;
+                    cout << "Nhap ten can tim: "; getline(cin, ht);
+                    qlcb.timTheoTen(ht);
+                    break;
+                }
+                case 6: {
+                    string loai;
+                    cout << "Nhap loai (CongNhan/KySu/NhanVien): "; getline(cin, loai);
+                    qlcb.timTheoLoai(loai);
+                    break;
+                }
+                case 7: qlcb.inTop3(); break;
+                case 0: cout << "Ket thuc chuong trinh!\n"; return 0;
+                default: cout << "Lua chon khong hop le.\n";
+            }
+        } catch (const exception& e) {
+            // Xử lý mọi ngoại lệ văng ra trong quá trình thao tác menu, tránh crash
+            cout << "LOI CHUONG TRINH: " << e.what() << "\nDu lieu van an toan, moi nhap lai!\n";
+        }
+    }
+    return 0;
+}
